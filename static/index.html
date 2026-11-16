@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>影核 · 智能核价</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="page-header">
+      <div class="brand-mark" aria-hidden="true">影</div>
+      <div><p class="eyebrow">报价核对 · 人工确认</p><h1>影核 · 智能核价</h1><p class="subtitle">供应商报价 → 核对与导出 → 模拟系统回执</p></div>
+      <span class="header-badge">演示工作区 · 数据均为模拟</span>
+    </header>
+    <ol class="stepper" aria-label="核价步骤">
+      <li id="step-upload" class="active" aria-current="step"><span>01</span>选择报价</li>
+      <li id="step-preview"><span>02</span>核价确认</li>
+      <li id="step-export"><span>03</span>导出导入</li>
+    </ol>
+    <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">正在加载当前浏览器的演示工作区…</div>
+    <div id="error" class="error" role="alert" hidden></div>
+    <div class="workspace">
+      <div class="main-column">
+        <section class="card" aria-labelledby="upload-title">
+          <div class="section-heading"><h2 id="upload-title">1. 选择供应商与报价</h2><button id="reload-suppliers" class="text-button" type="button">重新加载供应商</button></div>
+          <div class="field-grid">
+            <label>供应商<select id="supplier" aria-describedby="rule-summary"><option value="">正在加载…</option></select></label>
+            <label>业务方向<select id="direction"><option value="both">双向（下行 + 上行）</option><option value="mt">下行（MT）</option><option value="mo">上行（MO）</option></select></label>
+          </div>
+          <p id="rule-summary" class="rule-summary">选择供应商后显示当前规则。</p>
+          <p id="voice-note" class="notice" hidden>语音为演示结构，待真实模板复核；不代表已验证的 Viv 真实语音模板。</p>
+          <div class="file-picker">
+            <label for="file" class="upload-title">上传供应商报价</label><p class="muted">支持 .xls / .xlsx；原件不作为业务文件保存。</p>
+            <input id="file" type="file" accept=".xls,.xlsx" aria-label="上传供应商报价 .xls 或 .xlsx">
+          </div>
+          <div class="example-actions" aria-label="加载模拟示例"><span class="muted">一键示例</span>
+            <button class="button secondary" data-example="sms_both" type="button">短信双向</button>
+            <button class="button secondary" data-example="sms_mt" type="button">短信下行</button>
+            <button class="button secondary" data-example="sms_mo" type="button">短信上行</button>
+            <button class="button secondary" data-example="voice" type="button">语音</button>
+          </div>
+          <p id="filename" class="file-details">尚未选择报价文件。</p>
+          <label for="sheet-name">工作表名称（多工作表时必填）</label><input id="sheet-name" type="text" placeholder="例如：混合、国际直连；单工作表可留空">
+          <p class="field-help">多工作表必须明确指定名称；不自动合并不同报价表。</p>
+          <details class="email-section" open><summary>邮件与生效时间</summary>
+            <label for="email-text">粘贴邮件正文（可选）</label>
+            <textarea id="email-text" rows="4" placeholder="可粘贴包含生效日期的邮件，日期提取后由您明确选定。"></textarea>
+            <div class="field-grid">
+              <label>或选择邮件文件<input id="email-file" type="file" accept=".eml,.txt"></label>
+              <div class="field-action"><button id="load-email" class="button secondary" type="button">加载示例邮件</button><p id="email-filename" class="field-help">支持 .eml / .txt</p></div>
+            </div>
+            <div id="email-review" class="email-review" hidden>
+              <p id="email-summary" class="field-help"></p>
+              <label for="email-date">邮件中的生效日期候选（必须由您选定）</label>
+              <select id="email-date"><option value="">尚未选择日期</option></select>
+              <p class="field-help">即使只有一个候选也不自动选定。选择后自动重新预览；邮件发件时间不等于报价生效时间。</p>
+            </div>
+            <label for="manual-date">或明确填写生效时间（按供应商源时区）</label>
+            <input id="manual-date" type="datetime-local" step="1" aria-describedby="date-help">
+            <p id="date-help" class="field-help">仅用于补齐缺失日期。请先核对供应商时区。</p>
+          </details>
+          <button id="preview" class="button primary" type="button" disabled>分析并预览报价</button>
+          <p id="dirty-hint" class="field-help" hidden>规则已修改，请先保存供应商配置，再重新预览。</p>
+        </section>
+        <section id="preview-section" class="card" aria-labelledby="preview-title" hidden>
+          <div class="section-heading"><h2 id="preview-title">2. 核对报价与异常</h2><span id="preview-currency" class="pill"></span></div>
+          <div id="stats" class="stats" aria-label="核价统计"></div>
+          <div class="toolbar"><label>查看<select id="row-filter"><option value="all">全部报价</option><option value="increases">仅涨价</option><option value="issues">仅异常 / 提醒</option></select></label><button id="download-issues" class="text-button" type="button">下载完整异常 CSV</button></div>
+          <p id="table-summary" class="section-note"></p>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="报价预览，可横向滚动">
+            <table><caption class="sr-only">新报价与模拟系统现价对比</caption><thead><tr><th scope="col">源行</th><th scope="col" id="code-heading">MCC</th><th scope="col">MNC</th><th scope="col" id="downstream-heading">下行新价 / 现价</th><th scope="col" id="upstream-heading">上行新价 / 现价</th><th scope="col">生效时间</th><th scope="col">核价状态</th></tr></thead><tbody id="preview-body"></tbody></table>
+          </div>
+          <p id="issues-summary" class="notice" hidden></p>
+          <div class="confirmation">
+            <label class="confirm-label"><input id="confirmed" type="checkbox">我已核对供应商、方向、币种、日期和转换规则，确认导出。</label>
+            <label id="increase-confirmation" class="confirm-label" hidden><input id="confirm-increases" type="checkbox">我已核对涨价，确认接受本次涨价。</label>
+            <label id="partial-confirmation" class="confirm-label" hidden><input id="allow-partial" type="checkbox">我确认跳过阻断行，仅导出可处理报价；异常明细见 CSV。</label>
+          </div>
+          <button id="export" class="button primary" type="button" disabled>确认并下载目标 .xls</button>
+        </section>
+        <section id="result" class="card result" aria-labelledby="result-title" hidden>
+          <h2 id="result-title">3. 导出完成，导入模拟系统</h2><p id="result-counts"></p>
+          <div class="actions"><a id="download-result" class="button secondary">再次下载目标 .xls</a><button id="import" class="button primary" type="button" disabled>将刚导出的 .xls 导入【模拟系统】</button></div>
+          <p class="field-help">明确点击“导入模拟系统”后，生成文件中的标准报价将持久化到当前浏览器工作区。仅本浏览器本次导出有效，绑定凭据有效期 1 小时。供应商或规则变化后必须重新导出。</p>
+          <div id="receipt" class="receipt" role="status" aria-live="polite" hidden><h3>模拟导入回执</h3><p id="receipt-summary"></p></div>
+        </section>
+      </div>
+      <aside class="card rules-card" aria-labelledby="rules-title"><details id="config-details"><summary id="rules-title">供应商配置 · 可编辑 / 新建</summary>
+        <p class="field-help">编辑后保存至当前浏览器工作区。填写不同的配置 ID 可新建供应商。</p>
+        <form id="supplier-form">
+          <div class="field-grid">
+            <label>配置 ID<input id="config-id" name="id" type="text" required maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}"></label>
+            <label>供应商名称<input name="name" type="text" required maxlength="120"></label>
+            <label>业务类型<select name="business"><option value="sms">短信</option><option value="voice">语音</option></select></label>
+            <label>源时区<input name="timezone" type="text" required placeholder="Asia/Shanghai"></label>
+            <label>报价币种<input name="currency" type="text" required maxlength="12" placeholder="USD"></label>
+            <label>源价格除数<select name="divisor"><option value="100">100（源价 ÷ 100）</option><option value="1">1（保持源价）</option></select></label>
+          </div>
+          <fieldset><legend>源表头映射</legend><div class="field-grid">
+            <label>MCC / CC 表头<input name="header_mcc" type="text"></label><label>MNC 表头（可空）<input name="header_mnc" type="text"></label>
+            <label>下行 / 呼出（MT）<input name="header_mt" type="text"></label><label>上行 / 呼入（MO）<input name="header_mo" type="text"></label>
+            <label>生效时间表头<input name="header_date" type="text"></label>
+          </div></fieldset>
+          <details id="special-mapping"><summary>特殊表格映射</summary>
+            <label>编码模式<select id="mapping-mode"><option value="split">MCC + MNC 分列（MNC 可空）</option><option value="combined">MCCMNC 合并编码</option><option value="country">国家代码 + 人工映射</option></select></label>
+            <label>合并编码列<input name="header_mccmnc" type="text" placeholder="例如 MCCMNC"></label>
+            <label>国家代码列<input name="header_country" type="text" placeholder="例如 Code"></label>
+            <label>国家映射字典（JSON）<textarea name="country_map" rows="4" spellcheck="false" placeholder='{"US":{"mcc":"310","mnc":"999"}}'></textarea></label>
+            <label>默认工作表名称（可选）<input name="sheet_name" type="text" maxlength="31" placeholder="多工作表须明确指定"></label>
+            <p class="field-help">允许空 {}。只使用您明确配置的映射；缺少国家映射的报价逐行阻断，不猜测运营商。保存时仅启用所选编码模式。</p>
+          </details>
+          <label>空日期策略<select name="missing_date_policy"><option value="email_then_system">优先已选邮件日期，再用系统日期</option><option value="manual">使用明确填写的日期</option><option value="same_file">使用同文件日期</option><option value="skip">跳过空日期行</option></select></label>
+          <label>无效编码组合策略<select name="invalid_code_policy"><option value="max">使用可用最高价</option><option value="contract">使用合同约定价</option><option value="skip">跳过异常组合</option></select></label>
+          <label>模拟兜底 MNC<input name="fallback_mnc" type="text" required inputmode="numeric"></label>
+          <p class="field-help">999 仅为演示模拟编码，不代表真实运营商编码规则。</p>
+          <div class="field-grid"><label>合同约定价<input name="contract_rate" type="text" inputmode="decimal" placeholder="按合同填写"></label><label>约定价币种<input name="contract_currency" type="text" placeholder="USD"></label></div>
+          <label>约定币种 → 报价币种换算系数<input name="contract_fx_rate" type="text" inputmode="decimal" placeholder="仅不同币种时，明确填写"></label>
+          <p class="field-help">换算后价格 = 约定价 × 系数。5 USD 仅是可配置的合同场景示例，不作为所有供应商默认规则。</p>
+          <button id="save-supplier" class="button secondary" type="submit">保存当前配置 / 新建供应商</button>
+        </form>
+      </details></aside>
+    </div>
+    <section id="mock-system" class="card mock-system" aria-labelledby="mock-title">
+      <div class="section-heading"><div><h2 id="mock-title">模拟系统</h2><p class="field-help">内置数据均为模拟。明确导入的标准报价、供应商配置、模拟基准和回执在当前浏览器工作区持久化；各工作区隔离，闲置 30 天清理。</p></div><button id="refresh-system" class="button secondary" type="button">刷新价格与回执</button></div>
+      <p id="mock-status" role="status" aria-live="polite"></p>
+      <details open><summary>当前供应商价格</summary><p id="rates-summary" class="field-help"></p><div class="table-scroll" tabindex="0" role="region" aria-label="模拟系统价格，可横向滚动"><table><thead><tr><th scope="col" id="system-code-heading">MCC</th><th scope="col">MNC</th><th scope="col" id="system-downstream-heading">下行价</th><th scope="col" id="system-upstream-heading">上行价</th><th scope="col">币种</th><th scope="col">生效时间</th></tr></thead><tbody id="rates-body"></tbody></table></div></details>
+      <details><summary>模拟运营商编码参考</summary><p class="field-help">仅用于演示核价，不代表完整真实运营商资料。</p><div class="table-scroll" tabindex="0" role="region" aria-label="模拟运营商参考"><table><thead><tr><th scope="col">MCC</th><th scope="col">MNC</th><th scope="col">运营商</th><th scope="col">地区</th></tr></thead><tbody id="operators-body"></tbody></table></div></details>
+      <details id="baseline-details"><summary>维护模拟编码与基准报价</summary><p class="notice">仅保存到当前浏览器模拟库。先保存合法编码，再明确保存基准报价；原始 Excel 和邮件不作为业务文件保存。</p>
+        <form id="operator-form"><h3>第一步：维护合法编码</h3><div class="field-grid">
+          <label>业务<select name="business"><option value="sms">短信</option><option value="voice">语音</option></select></label>
+          <label>MCC<input name="mcc" type="text" inputmode="numeric" required pattern="[0-9]{1,3}"></label><label>MNC<input name="mnc" type="text" inputmode="numeric" required pattern="[0-9]{1,3}"></label><label>运营商名称<input name="name" type="text" required></label>
+        </div><button id="save-operator" class="button secondary" type="submit">保存模拟合法编码</button></form>
+        <form id="baseline-form"><h3>第二步：保存当前供应商基准报价</h3><p id="baseline-supplier" class="field-help"></p><div class="field-grid">
+          <label>MCC<input name="mcc" type="text" inputmode="numeric" required pattern="[0-9]{1,3}"></label><label>MNC<input name="mnc" type="text" inputmode="numeric" required pattern="[0-9]{1,3}"></label>
+          <label id="baseline-downstream-label">下行价<input name="downstream" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]+)?"></label><label id="baseline-upstream-label">上行价<input name="upstream" type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]+)?"></label>
+          <label>生效时间（GMT+8 系统时间）<input name="effective_time" type="datetime-local" step="1" required></label><label>币种<input name="currency" type="text" required></label>
+        </div><label class="confirm-label"><input id="baseline-confirmed" type="checkbox">我已核对并确认更新模拟基准，包含可能的涨价。</label><button id="save-baseline" class="button secondary" type="submit" disabled>保存模拟基准报价</button></form>
+      </details>
+      <details><summary>历史模拟回执</summary><ul id="receipts-list" class="receipts-list"><li>尚未加载。</li></ul></details>
+      <details class="reset-area"><summary>重置个人演示工作区</summary><p class="field-help">将当前浏览器的供应商配置、模拟价格与回执恢复为样例。此操作不影响他人。</p><label class="confirm-label"><input id="reset-confirmed" type="checkbox">我明确确认重置当前浏览器的演示数据。</label><button id="reset" class="button danger" type="button" disabled>确认重置当前工作区</button></details>
+    </section>
+    <footer class="page-footer"><p>原始 Excel 和邮件不作为业务文件保存。本地运行的大文件可能使用系统临时文件；所附容器配置使用内存临时目录。用户明确点击“导入模拟系统”后的标准报价，以及供应商配置、模拟基准和回执，在当前浏览器工作区持久化；各工作区隔离，闲置 30 天清理。</p><p>页面不调用外部 AI，模拟导入不写入真实业务系统。短信为演示主流程；语音演示结构待真实模板复核。</p></footer>
+  </main>
+</body>
+</html>

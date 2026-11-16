@@ -1,0 +1,35 @@
+services:
+  viv-rate-converter:
+    build: .
+    image: viv-rate-converter:2026.11.12
+    container_name: viv-rate-converter
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18041:8000"
+    mem_limit: 512m
+    cpus: 1.0
+    read_only: true
+    environment:
+      VIV_DATA_DIR: /data
+      VIV_SECURE_COOKIE: "1"
+    volumes:
+      - viv-demo-data:/data
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  viv-demo-data:
